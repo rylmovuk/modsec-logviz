@@ -28,6 +28,7 @@ export default function App() {
   const handleFile = async (text: string, name: string) => {
     setFilename(name)
     setQueryText('')
+    setCommittedText('')
     setExpandedId(null)
     setView('entries')
     setParsing(true)
@@ -41,31 +42,54 @@ export default function App() {
 
   const entries = useMemo(() => result?.entries ?? [], [result])
 
-  // The query box's own value and its syntax-error feedback stay on the
-  // immediate state (parsing a query string is cheap, independent of log
-  // size). The value that actually drives filtering — and therefore a
-  // re-render of the (large) entry list — is deferred, so React can keep
-  // the input itself responsive under load instead of racing a big
-  // filter+render on every keystroke.
+  // The query box's own value and its syntax-error feedback always stay on
+  // the immediate state (parsing a query string is cheap, independent of
+  // log size).
   const parseResult = useMemo(() => parseQuerySafe(queryText), [queryText])
 
+  // The value that actually drives filtering — and therefore a re-render of
+  // the (large) entry list — depends on the live-filtering toggle:
+  //  - live: it's deferred, so React can keep the input responsive instead
+  //    of racing a big filter+render on every keystroke.
+  //  - not live: it only updates when the query is explicitly submitted
+  //    (Enter, or the toggle flips back on), so the list stays put while
+  //    the user is still composing a query.
+  const [liveFiltering, setLiveFiltering] = useState(true)
+  const [committedText, setCommittedText] = useState('')
   const deferredQueryText = useDeferredValue(queryText)
-  const deferredParseResult = useMemo(() => parseQuerySafe(deferredQueryText), [deferredQueryText])
-  const isStale = deferredQueryText !== queryText
+  const effectiveQueryText = liveFiltering ? deferredQueryText : committedText
+  const isStale = effectiveQueryText !== queryText
+
+  const effectiveParseResult = useMemo(() => parseQuerySafe(effectiveQueryText), [effectiveQueryText])
 
   // Keep filtering by the last query that parsed successfully, so a
-  // momentarily-invalid query while typing doesn't blank out the view.
+  // momentarily-invalid query never blanks out the view.
   // Adjusting state during render (guarded so it only fires once per actual
   // change) rather than in an effect avoids an extra render/commit cycle.
   const [lastGood, setLastGood] = useState<{ text: string; ast: QueryNode | null }>({ text: '', ast: null })
-  if (deferredParseResult.error === null && lastGood.text !== deferredQueryText) {
-    setLastGood({ text: deferredQueryText, ast: deferredParseResult.ast })
+  if (effectiveParseResult.error === null && lastGood.text !== effectiveQueryText) {
+    setLastGood({ text: effectiveQueryText, ast: effectiveParseResult.ast })
   }
 
   const filtered = useMemo(() => filterEntriesByQuery(entries, lastGood.ast), [entries, lastGood.ast])
 
+  const commitQuery = () => {
+    setCommittedText(queryText)
+  }
+
+  const clearQuery = () => {
+    setQueryText('')
+    setCommittedText('')
+  }
+
+  const handleLiveFilteringChange = (live: boolean) => {
+    setLiveFiltering(live)
+    if (!live) setCommittedText(queryText) // freeze at the current text rather than snapping back
+  }
+
   const runQuery = (query: string) => {
     setQueryText(query)
+    setCommittedText(query)
     setView('entries')
   }
 
@@ -104,11 +128,7 @@ export default function App() {
           </div>
         )}
         <div className="ml-auto" />
-        {result && !parsing && (
-          <div className="w-64">
-            <FileUpload onFile={handleFile} compact />
-          </div>
-        )}
+        {result && !parsing && <FileUpload onFile={handleFile} compact />}
       </header>
 
       {!result && !parsing && (
@@ -148,10 +168,14 @@ export default function App() {
               <QueryBar
                 value={queryText}
                 onChange={setQueryText}
+                onSubmit={commitQuery}
+                onClear={clearQuery}
                 error={parseResult.error}
                 total={entries.length}
                 shown={filtered.length}
                 stale={isStale}
+                liveFiltering={liveFiltering}
+                onLiveFilteringChange={handleLiveFilteringChange}
               />
               {view === 'entries' ? (
                 <EntryTable entries={filtered} expandedId={expandedId} onToggle={toggleExpanded} />

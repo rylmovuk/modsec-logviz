@@ -41,7 +41,7 @@ const EntryRow = memo(function EntryRow({
       onClick={() => onToggle(entryKey)}
       style={{ display: 'grid', gridTemplateColumns: GRID_COLS, height: ROW_HEIGHT }}
       className={[
-        'cursor-pointer items-center border-b border-slate-800/70 text-sm transition-colors',
+        'cursor-pointer items-center overflow-hidden border-b border-slate-800/70 text-sm transition-colors',
         expanded ? 'bg-slate-900' : 'hover:bg-slate-900/60',
         entry.intercepted ? 'border-l-2 border-l-red-600' : 'border-l-2 border-l-transparent',
       ].join(' ')}
@@ -67,7 +67,7 @@ const EntryRow = memo(function EntryRow({
           '—'
         )}
       </div>
-      <div className="flex flex-wrap gap-1 overflow-hidden px-3">
+      <div className="flex flex-nowrap items-center gap-1 overflow-hidden px-3">
         {entry.tags.slice(0, 2).map((t) => (
           <Badge key={t} tone="sky">
             {t}

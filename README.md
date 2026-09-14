@@ -40,6 +40,9 @@ The entry list and Insights view are both driven by one query text box. An empty
 If a query doesn't parse, the entry list keeps showing the last query that did, with the parse error shown inline, so a
 half-typed expression never blanks the view.
 
+The "×" button in the query box clears it. **Live filtering** (on by default) can be switched off to only apply the
+query when you press Enter — handy while composing a longer expression against a large log.
+
 ## Performance
 
 The app is built to stay responsive on large logs (tens of thousands of entries):

@@ -13,7 +13,7 @@ export default function Badge({ children, tone = 'slate', title }: { children: R
   return (
     <span
       title={title}
-      className={`inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${TONE_CLASSES[tone]}`}
+      className={`inline-flex items-center whitespace-nowrap rounded-md px-1.5 py-0.5 text-xs font-medium ring-1 ring-inset ${TONE_CLASSES[tone]}`}
     >
       {children}
     </span>
