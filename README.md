@@ -40,6 +40,22 @@ The entry list and Insights view are both driven by one query text box. An empty
 If a query doesn't parse, the entry list keeps showing the last query that did, with the parse error shown inline, so a
 half-typed expression never blanks the view.
 
+## Performance
+
+The app is built to stay responsive on large logs (tens of thousands of entries):
+
+- **Parsing runs in a Web Worker** (`src/workers/parseAuditLog.worker.ts`), so a large upload doesn't freeze the page —
+  the UI shows a "Parsing…" state while it runs off the main thread.
+- **The entry list is virtualized** ([`@tanstack/react-virtual`](https://tanstack.com/virtual)) — only the rows actually
+  on screen (plus a small overscan) are mounted, regardless of how many entries match. Expanding a row's detail panel is
+  measured dynamically, so it slots into the virtualized list without breaking scroll position.
+- **Filtering is deferred from the input** via `useDeferredValue` — the query box's own text and its syntax-error
+  feedback update immediately (parsing a query string is cheap), but the expensive part — re-filtering potentially tens
+  of thousands of entries and re-rendering the list — is allowed to lag a tick behind so keystrokes never stall. A
+  subtle "…" next to the entry count shows when the list is still catching up.
+- Request/response bodies skip the JSON pretty-print attempt and cap the rendered text above a few hundred KB, so one
+  outsized body can't make expanding an entry janky.
+
 ## Getting started
 
 ```sh
@@ -72,7 +88,10 @@ src/
     timestamp.ts            # audit-log timestamp parsing + timeline bucketing
     palette.ts                # chart color tokens
     parseAuditLog.ts       # format detection + dispatch
-  components/            # React UI (upload, query bar, table, tabbed detail view)
+    parseAuditLogAsync.ts # runs parseAuditLog in a Web Worker
+  workers/
+    parseAuditLog.worker.ts  # off-main-thread parsing
+  components/            # React UI (upload, query bar, virtualized table, tabbed detail view)
   components/stats/      # Insights view (KPI tiles, bar lists, timeline chart)
 ```
 

@@ -1,57 +1,80 @@
-import { useMemo, useRef, useState } from 'react'
+import { useCallback, useDeferredValue, useMemo, useState } from 'react'
 import FileUpload from './components/FileUpload'
 import QueryBar from './components/QueryBar'
 import EntryTable from './components/EntryTable'
 import StatsView from './components/stats/StatsView'
-import { parseAuditLog } from './lib/parseAuditLog'
+import { parseAuditLogAsync } from './lib/parseAuditLogAsync'
 import type { ParseResult } from './lib/types'
 import { QueryParseError, filterEntriesByQuery, parseQuery, type QueryNode } from './lib/query'
 
 type View = 'entries' | 'insights'
 
+function parseQuerySafe(text: string): { ast: QueryNode | null; error: string | null } {
+  try {
+    return { ast: parseQuery(text), error: null }
+  } catch (err) {
+    return { ast: null, error: err instanceof QueryParseError ? err.message : 'Invalid query' }
+  }
+}
+
 export default function App() {
   const [result, setResult] = useState<ParseResult | null>(null)
   const [filename, setFilename] = useState('')
+  const [parsing, setParsing] = useState(false)
   const [queryText, setQueryText] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('entries')
 
-  const handleFile = (text: string, name: string) => {
+  const handleFile = async (text: string, name: string) => {
     setFilename(name)
     setQueryText('')
     setExpandedId(null)
     setView('entries')
-    setResult(parseAuditLog(text))
+    setParsing(true)
+    try {
+      const parsed = await parseAuditLogAsync(text)
+      setResult(parsed)
+    } finally {
+      setParsing(false)
+    }
   }
 
   const entries = useMemo(() => result?.entries ?? [], [result])
 
-  const parseResult = useMemo((): { ast: QueryNode | null; error: string | null } => {
-    try {
-      return { ast: parseQuery(queryText), error: null }
-    } catch (err) {
-      return { ast: null, error: err instanceof QueryParseError ? err.message : 'Invalid query' }
-    }
-  }, [queryText])
+  // The query box's own value and its syntax-error feedback stay on the
+  // immediate state (parsing a query string is cheap, independent of log
+  // size). The value that actually drives filtering — and therefore a
+  // re-render of the (large) entry list — is deferred, so React can keep
+  // the input itself responsive under load instead of racing a big
+  // filter+render on every keystroke.
+  const parseResult = useMemo(() => parseQuerySafe(queryText), [queryText])
+
+  const deferredQueryText = useDeferredValue(queryText)
+  const deferredParseResult = useMemo(() => parseQuerySafe(deferredQueryText), [deferredQueryText])
+  const isStale = deferredQueryText !== queryText
 
   // Keep filtering by the last query that parsed successfully, so a
   // momentarily-invalid query while typing doesn't blank out the view.
-  const lastGoodAst = useRef<QueryNode | null>(null)
-  if (parseResult.error === null) lastGoodAst.current = parseResult.ast
+  // Adjusting state during render (guarded so it only fires once per actual
+  // change) rather than in an effect avoids an extra render/commit cycle.
+  const [lastGood, setLastGood] = useState<{ text: string; ast: QueryNode | null }>({ text: '', ast: null })
+  if (deferredParseResult.error === null && lastGood.text !== deferredQueryText) {
+    setLastGood({ text: deferredQueryText, ast: deferredParseResult.ast })
+  }
 
-  const filtered = useMemo(
-    () => filterEntriesByQuery(entries, lastGoodAst.current),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [entries, queryText, parseResult.error],
-  )
+  const filtered = useMemo(() => filterEntriesByQuery(entries, lastGood.ast), [entries, lastGood.ast])
 
   const runQuery = (query: string) => {
     setQueryText(query)
     setView('entries')
   }
 
+  const toggleExpanded = useCallback((id: string) => {
+    setExpandedId((cur) => (cur === id ? null : id))
+  }, [])
+
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen flex-col">
       <header className="flex items-center gap-3 border-b border-slate-800 bg-slate-900/60 px-4 py-3">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-6 w-6 text-sky-400">
           <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 4.5 6v6c0 4.5 3.2 7.9 7.5 9 4.3-1.1 7.5-4.5 7.5-9V6L12 3Z" />
@@ -81,14 +104,14 @@ export default function App() {
           </div>
         )}
         <div className="ml-auto" />
-        {result && (
+        {result && !parsing && (
           <div className="w-64">
             <FileUpload onFile={handleFile} compact />
           </div>
         )}
       </header>
 
-      {!result && (
+      {!result && !parsing && (
         <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-6 px-4">
           <FileUpload onFile={handleFile} />
           <div className="text-center text-sm text-slate-500">
@@ -98,7 +121,18 @@ export default function App() {
         </main>
       )}
 
-      {result && (
+      {parsing && (
+        <main className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-slate-400">
+          <svg className="h-6 w-6 animate-spin text-sky-400" viewBox="0 0 24 24" fill="none">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 0 1 8-8V0C5.4 0 0 5.4 0 12h4Z" />
+          </svg>
+          <p className="text-sm">Parsing {filename}…</p>
+          <p className="text-xs text-slate-600">Running in a background worker so the page stays responsive.</p>
+        </main>
+      )}
+
+      {result && !parsing && (
         <main className="flex min-h-0 flex-1 flex-col">
           {result.warnings.length > 0 && (
             <div className="border-b border-amber-900 bg-amber-950/50 px-4 py-2 text-xs text-amber-300">
@@ -117,15 +151,10 @@ export default function App() {
                 error={parseResult.error}
                 total={entries.length}
                 shown={filtered.length}
+                stale={isStale}
               />
               {view === 'entries' ? (
-                <div className="flex-1 overflow-auto">
-                  <EntryTable
-                    entries={filtered}
-                    expandedId={expandedId}
-                    onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
-                  />
-                </div>
+                <EntryTable entries={filtered} expandedId={expandedId} onToggle={toggleExpanded} />
               ) : (
                 <StatsView entries={filtered} onRunQuery={runQuery} />
               )}

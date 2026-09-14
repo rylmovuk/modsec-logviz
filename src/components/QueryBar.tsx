@@ -6,6 +6,8 @@ interface Props {
   error: string | null
   total: number
   shown: number
+  /** True while the shown/total counts (and the filtered list) still reflect a previous, now-stale query. */
+  stale?: boolean
 }
 
 const FIELDS: { key: string; desc: string }[] = [
@@ -23,7 +25,7 @@ const FIELDS: { key: string; desc: string }[] = [
   { key: 'after / before', desc: 'ISO-ish date or datetime, e.g. after:2026-09-04T17:00' },
 ]
 
-export default function QueryBar({ value, onChange, error, total, shown }: Props) {
+export default function QueryBar({ value, onChange, error, total, shown, stale }: Props) {
   const [showHelp, setShowHelp] = useState(false)
 
   return (
@@ -51,8 +53,9 @@ export default function QueryBar({ value, onChange, error, total, shown }: Props
         >
           Syntax {showHelp ? '▾' : '▸'}
         </button>
-        <div className="shrink-0 text-sm text-slate-500">
+        <div className={['shrink-0 text-sm transition-opacity', stale ? 'text-slate-600' : 'text-slate-500'].join(' ')}>
           {shown === total ? `${total} entries` : `${shown} / ${total} entries`}
+          {stale && <span className="ml-1.5 inline-block animate-pulse">…</span>}
         </div>
       </div>
 
