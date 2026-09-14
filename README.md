@@ -11,6 +11,7 @@ A client-side web app that structurally renders [ModSecurity](https://modsecurit
   - The classic boundary-delimited "native" format (`--<id>-A--` … `--<id>-Z--`), covering parts A–K and Z as described in the [ModSecurity Handbook](https://www.feistyduck.com/library/modsecurity-handbook-free/online/ch04-logging.html).
   - The JSON / NDJSON audit log format used by ModSecurity v3 and the nginx connector.
 - **Filterable entry table**: free-text search (IP, URI, rule id, message text), plus dropdowns for HTTP method, response status, and rule id/tag, and an "intercepted only" toggle.
+- **Insights view**: aggregate stats over the current (filtered) set of entries — total/intercepted counts, request volume over time (allowed vs. intercepted), the most frequently matched rules, a response status code breakdown, top client IPs with simple outlier detection (mean + 2σ), the most common tags, and a method breakdown. Clicking a rule or client IP jumps back to the filtered entry list.
 - **Click-to-expand detail view** per entry, with tabs for:
   - **Request** — headers and body side by side (falls back to the reduced multipart body when the full body wasn't logged).
   - **Response** — headers and body side by side (falls back to the intended response body).
@@ -48,8 +49,12 @@ src/
     httpParse.ts        # request/status line + header block parsing
     trailerParse.ts     # part H "Message:" / "Apache-Error:" bracket-field parsing
     filters.ts           # entry list filtering
+    stats.ts              # aggregate metrics for the Insights view
+    timestamp.ts            # audit-log timestamp parsing + timeline bucketing
+    palette.ts                # chart color tokens
     parseAuditLog.ts       # format detection + dispatch
   components/            # React UI (upload, filter bar, table, tabbed detail view)
+  components/stats/      # Insights view (KPI tiles, bar lists, timeline chart)
 ```
 
 ## Notes on the log format

@@ -2,20 +2,25 @@ import { useMemo, useState } from 'react'
 import FileUpload from './components/FileUpload'
 import FilterBar from './components/FilterBar'
 import EntryTable from './components/EntryTable'
+import StatsView from './components/stats/StatsView'
 import { parseAuditLog } from './lib/parseAuditLog'
 import type { ParseResult } from './lib/types'
 import { applyFilters, EMPTY_FILTERS, uniqueSorted, type Filters } from './lib/filters'
+
+type View = 'entries' | 'insights'
 
 export default function App() {
   const [result, setResult] = useState<ParseResult | null>(null)
   const [filename, setFilename] = useState('')
   const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [view, setView] = useState<View>('entries')
 
   const handleFile = (text: string, name: string) => {
     setFilename(name)
     setFilters(EMPTY_FILTERS)
     setExpandedId(null)
+    setView('entries')
     setResult(parseAuditLog(text))
   }
 
@@ -43,6 +48,22 @@ export default function App() {
           <span className="ml-2 rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-400">
             {result.format === 'json' ? 'JSON audit log' : 'native audit log'}
           </span>
+        )}
+        {result && entries.length > 0 && (
+          <div className="ml-4 flex rounded-lg border border-slate-800 bg-slate-950 p-0.5 text-sm">
+            {(['entries', 'insights'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className={[
+                  'rounded-md px-3 py-1 font-medium capitalize transition-colors',
+                  view === v ? 'bg-slate-800 text-sky-300' : 'text-slate-400 hover:text-slate-200',
+                ].join(' ')}
+              >
+                {v === 'entries' ? 'Log entries' : 'Insights'}
+              </button>
+            ))}
+          </div>
         )}
         <div className="ml-auto" />
         {result && (
@@ -84,13 +105,27 @@ export default function App() {
                 total={entries.length}
                 shown={filtered.length}
               />
-              <div className="flex-1 overflow-auto">
-                <EntryTable
+              {view === 'entries' ? (
+                <div className="flex-1 overflow-auto">
+                  <EntryTable
+                    entries={filtered}
+                    expandedId={expandedId}
+                    onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+                  />
+                </div>
+              ) : (
+                <StatsView
                   entries={filtered}
-                  expandedId={expandedId}
-                  onToggle={(id) => setExpandedId((cur) => (cur === id ? null : id))}
+                  onFilterByRule={(ruleId) => {
+                    setFilters((f) => ({ ...f, tag: ruleId }))
+                    setView('entries')
+                  }}
+                  onFilterByIp={(ip) => {
+                    setFilters((f) => ({ ...f, text: ip }))
+                    setView('entries')
+                  }}
                 />
-              </div>
+              )}
             </>
           )}
         </main>
