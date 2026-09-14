@@ -1,7 +1,12 @@
 import type { Timeline as TimelineData } from '../../lib/stats'
 import { status } from '../../lib/palette'
 
-export default function Timeline({ data }: { data: TimelineData }) {
+interface Props {
+  data: TimelineData
+  onSelectRange?: (start: Date, end: Date) => void
+}
+
+export default function Timeline({ data, onSelectRange }: Props) {
   if (data.buckets.length === 0) {
     return <p className="px-1 py-4 text-sm text-slate-500 italic">No parseable timestamps to plot.</p>
   }
@@ -38,12 +43,28 @@ export default function Timeline({ data }: { data: TimelineData }) {
             : nearEnd
               ? 'right-0'
               : 'left-1/2 -translate-x-1/2'
+          const selectable = !!onSelectRange && b.total > 0
           return (
             <div
               key={b.start}
-              className="group relative flex h-full flex-1 flex-col justify-end"
+              className={[
+                'group relative flex h-full flex-1 flex-col justify-end rounded-t-sm transition-[filter]',
+                selectable ? 'cursor-pointer hover:brightness-125 focus:brightness-125 focus:outline-none' : '',
+              ].join(' ')}
               title={`${b.label}: ${b.total} requests (${b.intercepted} intercepted)`}
               tabIndex={0}
+              role={selectable ? 'button' : undefined}
+              onClick={selectable ? () => onSelectRange!(new Date(b.start), new Date(b.start + data.bucketSizeMs)) : undefined}
+              onKeyDown={
+                selectable
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        onSelectRange!(new Date(b.start), new Date(b.start + data.bucketSizeMs))
+                      }
+                    }
+                  : undefined
+              }
             >
               <div
                 className={`pointer-events-none absolute z-10 hidden whitespace-nowrap rounded-md bg-slate-800 px-2 py-1 text-xs text-slate-100 shadow-lg group-hover:block group-focus:block ${horizontalClass}`}
@@ -51,6 +72,7 @@ export default function Timeline({ data }: { data: TimelineData }) {
               >
                 <strong className="tabular-nums">{b.total}</strong> at {b.label}
                 {b.intercepted > 0 && <span className="text-red-300"> · {b.intercepted} intercepted</span>}
+                {selectable && <span className="text-slate-400"> · click to filter</span>}
               </div>
               <div className="flex w-full flex-col justify-end overflow-hidden rounded-t-sm" style={{ height: `${totalH}%` }}>
                 {b.intercepted > 0 && (

@@ -11,6 +11,7 @@ import {
   type CountItem,
 } from '../../lib/stats'
 import { statusClassColor, statusClassLabel } from '../../lib/palette'
+import { dateRangeQuery, predicate } from '../../lib/query'
 import StatTile from './StatTile'
 import BarList from './BarList'
 import Timeline from './Timeline'
@@ -27,11 +28,11 @@ function Card({ title, subtitle, children }: { title: string; subtitle?: string;
 
 interface Props {
   entries: LogEntry[]
-  onFilterByRule?: (ruleId: string) => void
-  onFilterByIp?: (ip: string) => void
+  /** Runs a query string built from a clicked stat and switches to the entry list. */
+  onRunQuery?: (query: string) => void
 }
 
-export default function StatsView({ entries, onFilterByRule, onFilterByIp }: Props) {
+export default function StatsView({ entries, onRunQuery }: Props) {
   const overview = useMemo(() => computeOverview(entries), [entries])
   const statusStats = useMemo(() => computeStatusCodeStats(entries), [entries])
   const ruleStats = useMemo(() => computeRuleStats(entries), [entries])
@@ -72,17 +73,27 @@ export default function StatsView({ entries, onFilterByRule, onFilterByIp }: Pro
         />
       </div>
 
-      <Card title="Request volume over time" subtitle="Allowed vs. intercepted, bucketed automatically from timestamps">
-        <Timeline data={timeline} />
+      <Card title="Request volume over time" subtitle="Allowed vs. intercepted, bucketed automatically from timestamps — click a bar to see those entries">
+        <Timeline data={timeline} onSelectRange={onRunQuery ? (start, end) => onRunQuery(dateRangeQuery(start, end)) : undefined} />
       </Card>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card title="Most frequently matched rules" subtitle="By rule id, across all triggered messages">
-          <BarList items={ruleStats} colorFor={() => '#3987e5'} onSelect={onFilterByRule ? (i) => onFilterByRule(i.key) : undefined} emptyLabel="No rules matched in this set." />
+          <BarList
+            items={ruleStats}
+            colorFor={() => '#3987e5'}
+            onSelect={onRunQuery ? (i) => onRunQuery(predicate('rule', i.key)) : undefined}
+            emptyLabel="No rules matched in this set."
+          />
         </Card>
 
         <Card title="Response status codes" subtitle="Colored by status class">
-          <BarList items={statusStats} colorFor={statusColor} formatLabel={(i) => (i.key === 'none' ? 'no status' : i.key)} />
+          <BarList
+            items={statusStats}
+            colorFor={statusColor}
+            formatLabel={(i) => (i.key === 'none' ? 'no status' : i.key)}
+            onSelect={onRunQuery ? (i) => onRunQuery(predicate('status', i.key)) : undefined}
+          />
           <div className="mt-3 flex flex-wrap gap-3 border-t border-slate-800 pt-2 text-[11px] text-slate-400">
             {(['2xx', '3xx', '4xx', '5xx'] as const).map((cls) => (
               <span key={cls} className="flex items-center gap-1.5">
@@ -97,25 +108,40 @@ export default function StatsView({ entries, onFilterByRule, onFilterByIp }: Pro
         </Card>
 
         <Card title="Requests by client IP" subtitle="Ranked by volume — outliers flagged at mean + 2σ">
-          <BarList items={ipStats} colorFor={(i) => (i.outlier ? '#d03b3b' : '#3987e5')} onSelect={onFilterByIp ? (i) => onFilterByIp(i.key) : undefined} emptyLabel="No client IPs recorded." />
+          <BarList
+            items={ipStats}
+            colorFor={(i) => (i.outlier ? '#d03b3b' : '#3987e5')}
+            onSelect={onRunQuery ? (i) => onRunQuery(predicate('ip', i.key)) : undefined}
+            emptyLabel="No client IPs recorded."
+          />
         </Card>
 
         <Card title="Most common tags">
-          <BarList items={tagStats} colorFor={() => '#3987e5'} emptyLabel="No tags recorded." />
+          <BarList
+            items={tagStats}
+            colorFor={() => '#3987e5'}
+            onSelect={onRunQuery ? (i) => onRunQuery(predicate('tag', i.key)) : undefined}
+            emptyLabel="No tags recorded."
+          />
         </Card>
       </div>
 
       <Card title="Requests by HTTP method">
         <div className="flex flex-wrap gap-4">
           {methodStats.map((m) => (
-            <div key={m.key} className="flex min-w-[90px] items-center gap-2">
+            <button
+              key={m.key}
+              type="button"
+              onClick={onRunQuery ? () => onRunQuery(predicate('method', m.key)) : undefined}
+              className="flex min-w-[90px] items-center gap-2 rounded-md px-1.5 py-1 hover:bg-slate-800/60 focus:bg-slate-800/60 focus:outline-none"
+            >
               <span
                 className="h-2.5 w-2.5 shrink-0 rounded-sm"
                 style={{ backgroundColor: methodColorMap[m.key] ?? '#5c5b57' }}
               />
               <span className="text-sm text-slate-200">{m.key}</span>
               <span className="ml-auto text-sm tabular-nums text-slate-400">{m.count}</span>
-            </div>
+            </button>
           ))}
         </div>
       </Card>

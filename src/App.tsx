@@ -1,24 +1,24 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import FileUpload from './components/FileUpload'
-import FilterBar from './components/FilterBar'
+import QueryBar from './components/QueryBar'
 import EntryTable from './components/EntryTable'
 import StatsView from './components/stats/StatsView'
 import { parseAuditLog } from './lib/parseAuditLog'
 import type { ParseResult } from './lib/types'
-import { applyFilters, EMPTY_FILTERS, uniqueSorted, type Filters } from './lib/filters'
+import { QueryParseError, filterEntriesByQuery, parseQuery, type QueryNode } from './lib/query'
 
 type View = 'entries' | 'insights'
 
 export default function App() {
   const [result, setResult] = useState<ParseResult | null>(null)
   const [filename, setFilename] = useState('')
-  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS)
+  const [queryText, setQueryText] = useState('')
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [view, setView] = useState<View>('entries')
 
   const handleFile = (text: string, name: string) => {
     setFilename(name)
-    setFilters(EMPTY_FILTERS)
+    setQueryText('')
     setExpandedId(null)
     setView('entries')
     setResult(parseAuditLog(text))
@@ -26,14 +26,29 @@ export default function App() {
 
   const entries = useMemo(() => result?.entries ?? [], [result])
 
-  const methods = useMemo(() => uniqueSorted(entries.map((e) => e.method)), [entries])
-  const statuses = useMemo(() => uniqueSorted(entries.map((e) => e.status)), [entries])
-  const tags = useMemo(
-    () => uniqueSorted(entries.flatMap((e) => [...e.tags, ...e.ruleIds])),
-    [entries],
+  const parseResult = useMemo((): { ast: QueryNode | null; error: string | null } => {
+    try {
+      return { ast: parseQuery(queryText), error: null }
+    } catch (err) {
+      return { ast: null, error: err instanceof QueryParseError ? err.message : 'Invalid query' }
+    }
+  }, [queryText])
+
+  // Keep filtering by the last query that parsed successfully, so a
+  // momentarily-invalid query while typing doesn't blank out the view.
+  const lastGoodAst = useRef<QueryNode | null>(null)
+  if (parseResult.error === null) lastGoodAst.current = parseResult.ast
+
+  const filtered = useMemo(
+    () => filterEntriesByQuery(entries, lastGoodAst.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [entries, queryText, parseResult.error],
   )
 
-  const filtered = useMemo(() => applyFilters(entries, filters), [entries, filters])
+  const runQuery = (query: string) => {
+    setQueryText(query)
+    setView('entries')
+  }
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -96,12 +111,10 @@ export default function App() {
             </div>
           ) : (
             <>
-              <FilterBar
-                filters={filters}
-                onChange={setFilters}
-                methods={methods}
-                statuses={statuses}
-                tags={tags}
+              <QueryBar
+                value={queryText}
+                onChange={setQueryText}
+                error={parseResult.error}
                 total={entries.length}
                 shown={filtered.length}
               />
@@ -114,17 +127,7 @@ export default function App() {
                   />
                 </div>
               ) : (
-                <StatsView
-                  entries={filtered}
-                  onFilterByRule={(ruleId) => {
-                    setFilters((f) => ({ ...f, tag: ruleId }))
-                    setView('entries')
-                  }}
-                  onFilterByIp={(ip) => {
-                    setFilters((f) => ({ ...f, text: ip }))
-                    setView('entries')
-                  }}
-                />
+                <StatsView entries={filtered} onRunQuery={runQuery} />
               )}
             </>
           )}
