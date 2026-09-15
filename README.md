@@ -76,6 +76,18 @@ npm run build
 
 Outputs a static site to `dist/` — this app has no backend, so it can be hosted from any static file server.
 
+## Deployment
+
+The `main` branch auto-deploys to GitHub Pages at
+[rylmovuk.github.io/modsec-logviz/](https://rylmovuk.github.io/modsec-logviz/) via
+[`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) on every push, and can also be run manually from the
+Actions tab. `vite.config.ts` sets `base: '/modsec-logviz/'` to match the project-page subpath — hosting this build
+anywhere else (a custom domain, a different subpath, `vite preview`) needs that value changed to match.
+
+The one manual step this repo needs, once: **Settings → Pages → Build and deployment → Source → "GitHub Actions"**.
+Nothing here can flip that toggle from the CLI; until it's set, the workflow's `deploy-pages` step will fail even
+though the build succeeds.
+
 ## Project structure
 
 ```
