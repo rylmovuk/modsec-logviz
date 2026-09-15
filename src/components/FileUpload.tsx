@@ -70,7 +70,7 @@ export default function FileUpload({ onFile, compact }: Props) {
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.5} className="h-5 w-5 shrink-0 text-slate-500">
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
           </svg>
-          <p className="whitespace-nowrap text-sm font-medium text-slate-200">Upload another log file</p>
+          <p className="whitespace-nowrap text-sm font-medium text-slate-200">Open another local log file</p>
         </>
       ) : (
         <>

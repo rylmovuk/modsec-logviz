@@ -13,7 +13,7 @@ interface Props {
 // Shared between the header and every row so columns line up. A plain CSS
 // grid (rather than a <table>) is what lets rows be absolutely positioned
 // for virtualization while keeping column alignment.
-const GRID_COLS = '245px 145px 100px minmax(0,1fr) 90px 150px minmax(150px,220px)'
+const GRID_COLS = '245px 145px 100px minmax(0,1fr) 90px 150px minmax(180px,240px)'
 const ROW_HEIGHT = 37
 
 function entryKeyOf(e: LogEntry): string {

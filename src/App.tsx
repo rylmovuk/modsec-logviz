@@ -45,7 +45,7 @@ export default function App() {
   // The query box's own value and its syntax-error feedback always stay on
   // the immediate state (parsing a query string is cheap, independent of
   // log size).
-  const parseResult = useMemo(() => parseQuerySafe(queryText), [queryText])
+  const parsedQuery = useMemo(() => parseQuerySafe(queryText), [queryText])
 
   // The value that actually drives filtering — and therefore a re-render of
   // the (large) entry list — depends on the live-filtering toggle:
@@ -60,15 +60,15 @@ export default function App() {
   const effectiveQueryText = liveFiltering ? deferredQueryText : committedText
   const isStale = effectiveQueryText !== queryText
 
-  const effectiveParseResult = useMemo(() => parseQuerySafe(effectiveQueryText), [effectiveQueryText])
+  const effectiveParsedQuery = useMemo(() => parseQuerySafe(effectiveQueryText), [effectiveQueryText])
 
   // Keep filtering by the last query that parsed successfully, so a
   // momentarily-invalid query never blanks out the view.
   // Adjusting state during render (guarded so it only fires once per actual
   // change) rather than in an effect avoids an extra render/commit cycle.
   const [lastGood, setLastGood] = useState<{ text: string; ast: QueryNode | null }>({ text: '', ast: null })
-  if (effectiveParseResult.error === null && lastGood.text !== effectiveQueryText) {
-    setLastGood({ text: effectiveQueryText, ast: effectiveParseResult.ast })
+  if (effectiveParsedQuery.error === null && lastGood.text !== effectiveQueryText) {
+    setLastGood({ text: effectiveQueryText, ast: effectiveParsedQuery.ast })
   }
 
   const filtered = useMemo(() => filterEntriesByQuery(entries, lastGood.ast), [entries, lastGood.ast])
@@ -118,7 +118,7 @@ export default function App() {
                 key={v}
                 onClick={() => setView(v)}
                 className={[
-                  'rounded-md px-3 py-1 font-medium capitalize transition-colors',
+                  'rounded-md px-3 py-1 font-medium transition-colors',
                   view === v ? 'bg-slate-800 text-sky-300' : 'text-slate-400 hover:text-slate-200',
                 ].join(' ')}
               >
@@ -170,7 +170,7 @@ export default function App() {
                 onChange={setQueryText}
                 onSubmit={commitQuery}
                 onClear={clearQuery}
-                error={parseResult.error}
+                error={parsedQuery.error}
                 total={entries.length}
                 shown={filtered.length}
                 stale={isStale}
